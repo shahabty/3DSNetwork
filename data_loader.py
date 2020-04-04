@@ -5,6 +5,7 @@ import numpy as np
 import yaml
 import glob
 import random
+import binvox_rw
 from PIL import Image 
 
 

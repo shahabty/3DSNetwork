@@ -66,7 +66,7 @@ class OccupancyNetwork(nn.Module):
         self._device = device
         #self.p0_z = p0_z
 
-    def forward(self, p, inputs, sample=True, **kwargs):
+    def forward(self, p, inputs,sample=True, **kwargs):
         ''' Performs a forward pass through the network.
 
         Args:
@@ -77,9 +77,10 @@ class OccupancyNetwork(nn.Module):
         batch_size = p.size(0)
         c = self.encoder(inputs)
         logits = self.decoder(p, c, **kwargs)
-        #p_r = dist.Bernoulli(logits=logits)
 
-        return logits
+        p_r = dist.Bernoulli(logits=logits)
+
+        return logits,p_r
 
     def to(self, device):
         ''' Puts the model to the device.
