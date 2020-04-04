@@ -1,2 +1,2 @@
 # 3DSNetwork
-This is a private implementation of a single-view 3D reconstruction network which explicitly take advantage of symmetry
+This is an implementation of paper "Occupancy Networks - Learning 3D Reconstruction in Function Space" that is different from the [official implementation](https://github.com/autonomousvision/occupancy_networks).

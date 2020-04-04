@@ -4,7 +4,7 @@ from utils import *
 import torch.optim as optim
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
-
+from checkpoints import CheckpointIO
 logger = SummaryWriter(os.path.join('out', 'logs')) 
 
 
@@ -37,25 +37,28 @@ cfg = {
   'with_transforms': False,
 },
 'model':{'c_dim': 256,'z_dim': 0},
-'train':{'batch_size': 64,'epochs':20}
+'train':{'batch_size': 64,'epochs':20,'pretrained':'onet_img2mesh_3-f786b04a.pt'},
+'out': {'out_dir':'out','checkpoint_dir':'pretrained'}
 }
 
 
 def main(cfg):
     train_dataset = get_dataset(mode = 'train',cfg = cfg)
     val_dataset = get_dataset(mode = 'val',cfg = cfg)
-
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg['train']['batch_size'], num_workers=4, shuffle=True, collate_fn=collate_remove_none,worker_init_fn=worker_init_fn)
-
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=10, num_workers=4, shuffle=False,collate_fn=collate_remove_none,worker_init_fn=worker_init_fn)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg['train']['batch_size'], num_workers=8, shuffle=True, collate_fn=collate_remove_none,worker_init_fn=worker_init_fn)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=10, num_workers=8, shuffle=False,collate_fn=collate_remove_none,worker_init_fn=worker_init_fn)
 
     model = get_network(cfg,device = 'cuda:0',dataset = train_dataset)
-
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-    train(train_loader,val_loader,model,optimizer,cfg)
+    checkpoint = CheckpointIO(cfg['out']['checkpoint_dir'], model=model, optimizer=optimizer) 
+    load_dict = checkpoint.load(cfg['train']['pretrained'])
 
-def train(train_loader,val_loader,model,optimizer,cfg):
+
+    train(train_loader,val_loader,model,optimizer,checkpoint,cfg)
+
+    
+def train(train_loader,val_loader,model,optimizer,checkpoint,cfg):
 
     for epoch in range(cfg['train']['epochs']):
         model.train()
@@ -74,12 +77,10 @@ def train(train_loader,val_loader,model,optimizer,cfg):
             optimizer.step()
             i+=1
             print('iteration:{}/480'.format(i)) 
-            
-        #validation()
-          
+                  
 
 
-def validation(val_loader,model,optimizer,cfg):
+def validation(val_loader,model,optimizer,checkpoint,cfg):
         model.eval()
 
         threshold = self.threshold
