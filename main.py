@@ -7,7 +7,8 @@ import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 from checkpoints import CheckpointIO
 from tqdm import tqdm
-
+from collections import defaultdict
+import shutil
 logger = SummaryWriter(os.path.join('out', 'logs')) 
 
 
@@ -43,7 +44,7 @@ cfg = {
 'model':{'c_dim': 256,'z_dim': 0},
 'train':{'batch_size': 64,'epochs':20,'pretrained':'onet_img2mesh_3-f786b04a.pt'},
 'val':{'batch_size':10},
-'test':{'pretrained':'onet_img2mesh_3-f786b04a.pt'},
+'test':{'pretrained':'onet_img2mesh_3-f786b04a.pt','vis_n_outputs': 30},
 'out': {'out_dir':'out','checkpoint_dir':'pretrained','save_freq':5}
 }
 
@@ -219,8 +220,8 @@ def test(test_loader,test_dataset,model,cfg):
         out_file_dict = {}
 
         # Also copy ground truth
-        modelpath = os.path.join(test_dataset.dataset_folder, category_id, modelname,'model_watertight.off')
-        out_file_dict['gt'] = modelpath
+#        modelpath = os.path.join(test_dataset.dataset_folder, category_id, modelname,'model_watertight.off')
+#        out_file_dict['gt'] = modelpath
 
     #if generate_mesh:
         #t0 = time.time()
@@ -268,7 +269,7 @@ def test(test_loader,test_dataset,model,cfg):
 
         # Copy to visualization directory for first vis_n_output samples
         c_it = model_counter[category_id]
-        if c_it < vis_n_outputs:
+        if c_it < cfg['test']['vis_n_outputs']:
             # Save output files
             img_name = '%02d.off' % c_it
             for k, filepath in out_file_dict.items():
