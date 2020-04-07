@@ -76,7 +76,7 @@ class OccupancyNetwork(nn.Module):
         '''
         batch_size = p.size(0)
         c = self.encoder(inputs)
-        logits = self.decoder(p, c, **kwargs)
+        logits = self.decoder(p, c)
 
         p_r = dist.Bernoulli(logits=logits)
 

@@ -2,8 +2,13 @@ import os
 import torch
 import numpy as np
 from torch.utils import data
+from torchvision.utils import save_image
 
-
+def visualize_data(data,data_type,out_file):
+    if data_type == 'img':
+        if data.dim() == 3:
+            data = data.unsqueeze(0)
+        save_image(data, out_file, nrow=4)
 
 def compute_iou(occ1, occ2):
     ''' Computes the Intersection over Union (IoU) value for two sets of
