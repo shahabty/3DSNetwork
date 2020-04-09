@@ -62,6 +62,7 @@ class CheckpointIO(object):
             print(filename)
             print('=> Loading checkpoint from local file...')
             state_dict = torch.load(filename)
+
             scalars = self.parse_state_dict(state_dict)
             return scalars
         else:
@@ -85,10 +86,11 @@ class CheckpointIO(object):
         Args:
             state_dict (dict): State dict of model
     '''
-
         for k, v in self.module_dict.items():
-            if k in state_dict:
-                v.load_state_dict(state_dict[k])
+            if k in state_dict and  k != 'optimizer':
+                v.load_state_dict(state_dict[k],strict = False)
+            #elif k == 'optimizer':
+            #    v.load_state_dict(state_dict['optimizer'])
             else:
                 print('Warning: Could not find %s in checkpoint!' % k)
         scalars = {k: v for k, v in state_dict.items()

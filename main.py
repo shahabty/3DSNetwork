@@ -8,12 +8,11 @@ from tensorboardX import SummaryWriter
 from checkpoints import CheckpointIO
 from tqdm import tqdm
 from collections import defaultdict
-import shutil
-logger = SummaryWriter(os.path.join('out', 'logs')) 
+import shutil 
 
 
 cfg = {
-'mode':'test',
+'mode':'train',
 'data':{'dataset': 'Shapes3D',
   'path': '/media/shahab/D2/CV-project/3DSNetwork/data/ShapeNet/',
   'classes': None,
@@ -45,9 +44,10 @@ cfg = {
 'train':{'batch_size': 64,'epochs':20,'pretrained':'onet_img2mesh_3-f786b04a.pt'},
 'val':{'batch_size':10},
 'test':{'pretrained':'onet_img2mesh_3-f786b04a.pt','vis_n_outputs': 30},
-'out': {'out_dir':'out','checkpoint_dir':'pretrained','save_freq':5}
+'out': {'out_dir':'out_crf','checkpoint_dir':'pretrained','save_freq':5}
 }
 
+logger = SummaryWriter(os.path.join(cfg['out']['out_dir'], 'logs'))
 
 def main(cfg):
 
@@ -80,7 +80,7 @@ def train(train_loader,val_loader,model,optimizer,checkpoint,cfg):
     it = 0
     for epoch in range(cfg['train']['epochs']):
         model.train()
-        validation(val_loader,model,optimizer,checkpoint,cfg,it)
+        #validation(val_loader,model,optimizer,checkpoint,cfg,it)
         for batch in tqdm(train_loader):
             p = batch.get('points').to('cuda:0')
             occ = batch.get('points.occ').to('cuda:0')

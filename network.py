@@ -2,6 +2,7 @@ from encoder import get_encoder
 from decoder import get_decoder
 import torch.nn as nn
 import torch.distributions as dist
+from crf import get_crf
 
 
 def get_network(cfg, device = None,dataset = None,**kwargs):
@@ -17,21 +18,9 @@ def get_network(cfg, device = None,dataset = None,**kwargs):
     c_dim = cfg['model']['c_dim']
 
     decoder = get_decoder(dim=dim, z_dim=z_dim, c_dim=c_dim)
-
-        #if z_dim != 0:
-        #    encoder_latent = encoder_latent_dict[encoder_latent](dim=dim, z_dim=z_dim, c_dim=c_dim,**encoder_latent_kwargs)
-        #else:
-        #    encoder_latent = None
-
-        #if encoder == 'idx':
-        #    encoder = nn.Embedding(len(dataset), c_dim)
-        #elif encoder is not None:
     encoder = get_encoder(model_name = 'resnet18',c_dim=c_dim)
-        #else:
-        #    encoder = None
-
-        #p0_z = get_prior_z(cfg, device)
-    model = OccupancyNetwork(decoder, encoder, device=device)
+    crf = get_crf(dim_in = cfg['data']['points_subsample'],dim_out = cfg['data']['points_subsample'])
+    model = OccupancyNetwork(decoder, encoder,crf,device=device)
     return model
 
 class OccupancyNetwork(nn.Module):
@@ -45,26 +34,13 @@ class OccupancyNetwork(nn.Module):
         device (device): torch device
     '''
 
-    def __init__(self, decoder, encoder=None, encoder_latent=None, p0_z=None,
-                 device=None):
+    def __init__(self, decoder, encoder=None,crf = None,device=None):
         super().__init__()
-        #if p0_z is None:
-        #    p0_z = dist.Normal(torch.tensor([]), torch.tensor([]))
-
         self.decoder = decoder.to(device)
-
-        #if encoder_latent is not None:
-       #     self.encoder_latent = encoder_latent.to(device)
-       # else:
-       #     self.encoder_latent = None
-
-        #if encoder is not None:
         self.encoder = encoder.to(device)
-        #else:
-        #    self.encoder = None
-
+        if crf is not None: 
+            self.crf = crf.to(device)
         self._device = device
-        #self.p0_z = p0_z
 
     def forward(self, p, inputs,sample=True, **kwargs):
         ''' Performs a forward pass through the network.
@@ -74,13 +50,18 @@ class OccupancyNetwork(nn.Module):
             inputs (tensor): conditioning input
             sample (bool): whether to sample for z
         '''
+#        print(p.shape)
         batch_size = p.size(0)
         c = self.encoder(inputs)
         logits = self.decoder(p, c)
+        crf_out = None
+        if self.crf != None:
+            crf_out = self.crf(logits,p)
+            #crf_out = self.crf(logits.unsqueeze(1),p.permute(0,2,1)).squeeze()
+        p_r = dist.Bernoulli(logits=crf_out)#logits)
 
-        p_r = dist.Bernoulli(logits=logits)
-
-        return logits,p_r
+#        return logits,p_r,crf_out
+        return crf_out,p_r
 
     def to(self, device):
         ''' Puts the model to the device.
