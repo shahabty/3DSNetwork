@@ -12,7 +12,7 @@ username@PC:~$ conda env create -f environment.yml
 username@PC:~$ conda activate onet-crf
 ```
 ### Data Preparation
-We follow the same data preparation described [here](https://github.com/autonomousvision/occupancy_networks)
+We follow the same data preparation described [here](https://github.com/autonomousvision/occupancy_networks).
 ### Training and Testing
 In order to train and validate, cfg['mode'] must be 'train' in the main. Then:
 ```console
