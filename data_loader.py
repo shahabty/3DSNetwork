@@ -28,23 +28,32 @@ def get_dataset(mode, cfg, return_idx=False, return_category=False):
     }
 
     split = splits[mode]
+    
+    if split == 'test':
+        points_field = PointsField(cfg['data']['points_iou_file'],unpackbits=cfg['data']['points_unpackbits'],)
+        pointcloud_field = PointCloudField(cfg['data']['pointcloud_chamfer_file'])
+        fields = {'points_iou': points_field,'pointcloud_chamfer': pointcloud_field,'idx': IndexField(),}
+    else:
+        # Dataset fields
+        # Method specific fields (usually correspond to output)
+        fields = get_data_fields(mode, cfg)
+        # Input fields
+        inputs_field = get_inputs_field(mode, cfg)
+        if inputs_field is not None:
+            fields['inputs'] = inputs_field
 
-    # Dataset fields
-    # Method specific fields (usually correspond to output)
-    fields = get_data_fields(mode, cfg)
-    # Input fields
-    inputs_field = get_inputs_field(mode, cfg)
-    if inputs_field is not None:
-        fields['inputs'] = inputs_field
+        if return_idx:
+            fields['idx'] = IndexField()
 
-    if return_idx:
-        fields['idx'] = IndexField()
+        if return_category:
+            fields['category'] = CategoryField()
 
-    if return_category:
-        fields['category'] = CategoryField()
-
+        
     dataset = Shapes3dDataset(dataset_folder, fields,split=split,categories=categories)
-    return dataset
+    try:
+        return dataset
+    except AttributeError:
+         print('The dataset is empty')
 
 class Shapes3dDataset(data.Dataset):
     ''' 3D Shapes dataset class.
@@ -505,4 +514,58 @@ class VoxelsField(Field):
             voxels = self.transform(voxels)
 
         return voxels
+
+class PointCloudField(Field):
+    ''' Point cloud field.
+
+    It provides the field used for point cloud data. These are the points
+    randomly sampled on the mesh.
+
+    Args:
+        file_name (str): file name
+        transform (list): list of transformations applied to data points
+        with_transforms (bool): whether scaling and rotation dat should be
+            provided
+    '''
+    def __init__(self, file_name, transform=None, with_transforms=False):
+        self.file_name = file_name
+        self.transform = transform
+        self.with_transforms = with_transforms
+
+    def load(self, model_path, idx, category):
+        ''' Loads the data point.
+
+        Args:
+            model_path (str): path to model
+            idx (int): ID of data point
+            category (int): index of category
+        '''
+        file_path = os.path.join(model_path, self.file_name)
+
+        pointcloud_dict = np.load(file_path)
+
+        points = pointcloud_dict['points'].astype(np.float32)
+        normals = pointcloud_dict['normals'].astype(np.float32)
+        data = {
+            None: points,
+            'normals': normals,
+        }
+
+        if self.with_transforms:
+            data['loc'] = pointcloud_dict['loc'].astype(np.float32)
+            data['scale'] = pointcloud_dict['scale'].astype(np.float32)
+
+        if self.transform is not None:
+            data = self.transform(data)
+
+        return data
+
+    def check_complete(self, files):
+        ''' Check if field is complete.
+        
+        Args:
+            files: files
+        '''
+        complete = (self.file_name in files)
+        return complete
 

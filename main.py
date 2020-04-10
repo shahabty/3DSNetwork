@@ -9,10 +9,12 @@ from checkpoints import CheckpointIO
 from tqdm import tqdm
 from collections import defaultdict
 import shutil 
+import trimesh
+from evaluator import MeshEvaluator
 
 
 cfg = {
-'mode':'train',
+'mode':'test',
 'data':{'dataset': 'Shapes3D',
   'path': '/media/shahab/D2/CV-project/3DSNetwork/data/ShapeNet/',
   'classes': None,
@@ -43,11 +45,12 @@ cfg = {
 'model':{'c_dim': 256,'z_dim': 0},
 'train':{'batch_size': 64,'epochs':20,'pretrained':'onet_img2mesh_3-f786b04a.pt'},
 'val':{'batch_size':10},
-'test':{'pretrained':'onet_img2mesh_3-f786b04a.pt','vis_n_outputs': 30},
+'test':{'pretrained':'model_crf_best.pt','vis_n_outputs': 30},
 'out': {'out_dir':'out_crf','checkpoint_dir':'pretrained','save_freq':5}
 }
 
-logger = SummaryWriter(os.path.join(cfg['out']['out_dir'], 'logs'))
+if cfg['mode'] == 'train':
+    logger = SummaryWriter(os.path.join(cfg['out']['out_dir'], 'logs'))
 
 def main(cfg):
 
@@ -80,7 +83,8 @@ def train(train_loader,val_loader,model,optimizer,checkpoint,cfg):
     it = 0
     for epoch in range(cfg['train']['epochs']):
         model.train()
-        #validation(val_loader,model,optimizer,checkpoint,cfg,it)
+        validation(val_loader,model,optimizer,checkpoint,cfg,it)
+        return 0
         for batch in tqdm(train_loader):
             p = batch.get('points').to('cuda:0')
             occ = batch.get('points.occ').to('cuda:0')
@@ -98,7 +102,7 @@ def train(train_loader,val_loader,model,optimizer,checkpoint,cfg):
             it+=1
 
         checkpoint.save('model_%s.pt'%str(epoch), epoch_it=epoch, it=it)
-        validation(val_loader,model,optimizer,checkpoint,cfg,it)
+        #validation(val_loader,model,optimizer,checkpoint,cfg,it)
 
 
 def validation(val_loader,model,optimizer,checkpoint,cfg,it):
@@ -161,6 +165,8 @@ def test(test_loader,test_dataset,model,cfg):
     model.eval()
     generator = get_generator(model)
     model_counter = defaultdict(int)
+    eval_meshes(test_loader,test_dataset,model,cfg)
+    return 0
     for it,data in enumerate(tqdm(test_loader)):
         # Output folders
         mesh_dir = os.path.join(cfg['out']['out_dir'], 'meshes')
@@ -207,26 +213,11 @@ def test(test_loader,test_dataset,model,cfg):
         if not os.path.exists(in_dir):
             os.makedirs(in_dir)
 
-        # Timing dict
-        #time_dict = {
-        #    'idx': idx,
-        #    'class id': category_id,
-        #    'class name': category_name,
-        #    'modelname': modelname,
-        #}
-        #time_dicts.append(time_dict)
-
         # Generate outputs
         out_file_dict = {}
 
         # Also copy ground truth
-#        modelpath = os.path.join(test_dataset.dataset_folder, category_id, modelname,'model_watertight.off')
-#        out_file_dict['gt'] = modelpath
-
-    #if generate_mesh:
-        #t0 = time.time()
         out = generator.generate_mesh(data)
-        #time_dict['mesh'] = time.time() - t0
 
         # Get statistics
         try:
@@ -239,34 +230,11 @@ def test(test_loader,test_dataset,model,cfg):
         mesh_out_file = os.path.join(mesh_dir, '%s.off' % modelname)
         mesh.export(mesh_out_file)
         out_file_dict['mesh'] = mesh_out_file
-
-    #if generate_pointcloud:
-    #    t0 = time.time()
-    #    pointcloud = generator.generate_pointcloud(data)
-    #    time_dict['pcl'] = time.time() - t0
-    #    pointcloud_out_file = os.path.join(
-    #        pointcloud_dir, '%s.ply' % modelname)
-    #    export_pointcloud(pointcloud, pointcloud_out_file)
-    #    out_file_dict['pointcloud'] = pointcloud_out_file
-   #if cfg['generation']['copy_input']:
         # Save inputs
-        #if input_type == 'img':
         inputs_path = os.path.join(in_dir, '%s.jpg' % modelname)
         inputs = data['inputs'].squeeze(0).cpu()
         visualize_data(inputs, 'img', inputs_path)
         out_file_dict['in'] = inputs_path
-        #elif input_type == 'voxels':
-        #    inputs_path = os.path.join(in_dir, '%s.off' % modelname)
-        #    inputs = data['inputs'].squeeze(0).cpu()
-        #    voxel_mesh = VoxelGrid(inputs).to_mesh()
-        #    voxel_mesh.export(inputs_path)
-        #    out_file_dict['in'] = inputs_path
-        #elif input_type == 'pointcloud':
-        #    inputs_path = os.path.join(in_dir, '%s.ply' % modelname)
-        #    inputs = data['inputs'].squeeze(0).cpu().numpy()
-        #    export_pointcloud(inputs, inputs_path, False)
-        #    out_file_dict['in'] = inputs_path
-
         # Copy to visualization directory for first vis_n_output samples
         c_it = model_counter[category_id]
         if c_it < cfg['test']['vis_n_outputs']:
@@ -279,20 +247,109 @@ def test(test_loader,test_dataset,model,cfg):
                 shutil.copyfile(filepath, out_file)
 
         model_counter[category_id] += 1
-#time_df = pd.DataFrame(time_dicts)
-#time_df.set_index(['idx'], inplace=True)
-#time_df.to_pickle(out_time_file)
 
-# Create pickle files  with main statistics
-#time_df_class = time_df.groupby(by=['class name']).mean()
-#time_df_class.to_pickle(out_time_file_class)
+#    eval_meshes(test_loader,test_dataset,model,cfg)
 
-# Print results
-#time_df_class.loc['mean'] = time_df_class.mean()
-#print('Timings [s]:')
-#print(time_df_class)
+def eval_meshes(test_loader,test_dataset,model,cfg):
+# Evaluate all classes
 
-    
-   
+    evaluator = MeshEvaluator(n_points=100000)      
+    eval_dicts = []
+    print('Evaluating meshes...')
+
+    for it, data in enumerate(tqdm(test_loader)):
+        if data is None:
+            print('Invalid data.')
+            continue
+
+        # Output folders
+        #if not args.eval_input:
+        mesh_dir = os.path.join(cfg['out']['out_dir'], 'meshes')
+        pointcloud_dir = os.path.join(cfg['out']['out_dir'], 'pointcloud')
+        #else:
+        #    mesh_dir = os.path.join(generation_dir, 'input')
+        #    pointcloud_dir = os.path.join(generation_dir, 'input')
+
+        # Get index etc.
+        idx = data['idx'].item()
+
+        try:
+            model_dict = test_dataset.get_model_dict(idx)
+        except AttributeError:
+            model_dict = {'model': str(idx), 'category': 'n/a'}
+
+        modelname = model_dict['model']
+        category_id = model_dict['category']
+
+        try:
+            category_name = test_dataset.metadata[category_id].get('name', 'n/a')
+        except AttributeError:
+            category_name = 'n/a'
+
+        if category_id != 'n/a':
+            mesh_dir = os.path.join(mesh_dir, category_id)
+            pointcloud_dir = os.path.join(pointcloud_dir, category_id)
+
+        # Evaluate
+        pointcloud_tgt = data['pointcloud_chamfer'].squeeze(0).numpy()
+        normals_tgt = data['pointcloud_chamfer.normals'].squeeze(0).numpy()
+        points_tgt = data['points_iou'].squeeze(0).numpy()
+        occ_tgt = data['points_iou.occ'].squeeze(0).numpy()
+
+        # Evaluating mesh and pointcloud
+        # Start row and put basic informatin inside
+        eval_dict = {
+            'idx': idx,
+            'class id': category_id,
+            'class name': category_name,
+            'modelname': modelname,
+        }
+        eval_dicts.append(eval_dict)
+
+        # Evaluate mesh
+        #if cfg['test']['eval_mesh']:
+        mesh_file = os.path.join(mesh_dir, '%s.off' % modelname)
+
+        if os.path.exists(mesh_file):
+            mesh = trimesh.load(mesh_file, process=False)
+            eval_dict_mesh = evaluator.eval_mesh(
+                mesh, pointcloud_tgt, normals_tgt, points_tgt, occ_tgt)
+            for k, v in eval_dict_mesh.items():
+                eval_dict[k + ' (mesh)'] = v
+        else:
+            print('Warning: mesh does not exist: %s' % mesh_file)
+
+        # Evaluate point cloud
+        #if cfg['test']['eval_pointcloud']:
+        #    pointcloud_file = os.path.join(
+        #        pointcloud_dir, '%s.ply' % modelname)
+        #
+        #    if os.path.exists(pointcloud_file):
+        #        pointcloud = load_pointcloud(pointcloud_file)
+        #        eval_dict_pcl = evaluator.eval_pointcloud(
+        #            pointcloud, pointcloud_tgt)
+        #        for k, v in eval_dict_pcl.items():
+        #            eval_dict[k + ' (pcl)'] = v
+        #    else:
+        #print 
+        #print('Warning: pointcloud does not exist: %s'
+        #                % pointcloud_file)
+
+    # Create pandas dataframe and save
+    eval_df = pd.DataFrame(eval_dicts)
+    eval_df.set_index(['idx'], inplace=True)
+    eval_df.to_pickle(out_file)
+
+    # Create CSV file  with main statistics
+    eval_df_class = eval_df.groupby(by=['class name']).mean()
+    eval_df_class.to_csv(out_file_class)
+
+    # Print results
+    eval_df_class.loc['mean'] = eval_df_class.mean()
+    print(eval_df_class)
+
+
+
+
 main(cfg) 
 
