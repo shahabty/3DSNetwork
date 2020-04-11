@@ -11,10 +11,12 @@ from collections import defaultdict
 import shutil 
 import trimesh
 from evaluator import MeshEvaluator
+import pandas as pd
 
 
 cfg = {
-'mode':'test',
+'mode':'train',
+'with_crf':True,
 'data':{'dataset': 'Shapes3D',
   'path': '/media/shahab/D2/CV-project/3DSNetwork/data/ShapeNet/',
   'classes': None,
@@ -45,8 +47,8 @@ cfg = {
 'model':{'c_dim': 256,'z_dim': 0},
 'train':{'batch_size': 64,'epochs':20,'pretrained':'onet_img2mesh_3-f786b04a.pt'},
 'val':{'batch_size':10},
-'test':{'pretrained':'model_crf_best.pt','vis_n_outputs': 30},
-'out': {'out_dir':'out_crf','checkpoint_dir':'pretrained','save_freq':5}
+'test':{'pretrained':'model_crf_best_2.pt','vis_n_outputs': 30},
+'out': {'out_dir':'out','checkpoint_dir':'pretrained','save_freq':5}
 }
 
 if cfg['mode'] == 'train':
@@ -55,14 +57,14 @@ if cfg['mode'] == 'train':
 def main(cfg):
 
     if cfg['mode'] == 'train':
-        train_dataset = get_dataset(mode = 'train',cfg = cfg)
-        val_dataset = get_dataset(mode = 'val',cfg = cfg)
+        train_dataset = get_dataset(mode = cfg['mode'],cfg = cfg)
+        val_dataset = get_dataset(mode = cfg['mode'],cfg = cfg)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg['train']['batch_size'], num_workers=8, shuffle=True, collate_fn=collate_remove_none,worker_init_fn=worker_init_fn)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=cfg['val']['batch_size'], num_workers=8, shuffle=False,collate_fn=collate_remove_none,worker_init_fn=worker_init_fn)
         model = get_network(cfg,device = 'cuda:0',dataset = train_dataset)      
     else:
-        test_dataset = get_dataset(mode = 'test', cfg = cfg, return_idx=True)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, num_workers=0, shuffle=False)
+        test_dataset = get_dataset(mode = cfg['mode'], cfg = cfg, return_idx=True)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, num_workers=4, shuffle=False)
         model = get_network(cfg,device = 'cuda:0',dataset = test_dataset)
 
     if cfg['mode'] == 'train':
@@ -165,8 +167,9 @@ def test(test_loader,test_dataset,model,cfg):
     model.eval()
     generator = get_generator(model)
     model_counter = defaultdict(int)
-    eval_meshes(test_loader,test_dataset,model,cfg)
-    return 0
+    if cfg['mode'] == 'eval':
+        eval_meshes(test_loader,test_dataset,model,cfg)
+        return 0
     for it,data in enumerate(tqdm(test_loader)):
         # Output folders
         mesh_dir = os.path.join(cfg['out']['out_dir'], 'meshes')
@@ -336,6 +339,8 @@ def eval_meshes(test_loader,test_dataset,model,cfg):
         #                % pointcloud_file)
 
     # Create pandas dataframe and save
+    out_file = os.path.join(cfg['out']['out_dir'],'eval_mesh_full.pkl')
+    out_file_class = os.path.join(cfg['out']['out_dir'], 'eval_meshes.csv')
     eval_df = pd.DataFrame(eval_dicts)
     eval_df.set_index(['idx'], inplace=True)
     eval_df.to_pickle(out_file)
@@ -347,8 +352,6 @@ def eval_meshes(test_loader,test_dataset,model,cfg):
     # Print results
     eval_df_class.loc['mean'] = eval_df_class.mean()
     print(eval_df_class)
-
-
 
 
 main(cfg) 

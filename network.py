@@ -19,7 +19,7 @@ def get_network(cfg, device = None,dataset = None,**kwargs):
 
     decoder = get_decoder(dim=dim, z_dim=z_dim, c_dim=c_dim)
     encoder = get_encoder(model_name = 'resnet18',c_dim=c_dim)
-    crf = get_crf(dim_in = cfg['data']['points_subsample'],dim_out = cfg['data']['points_subsample'])
+    crf = get_crf(dim_in = cfg['data']['points_subsample'],dim_out = cfg['data']['points_subsample'],with_crf = cfg['with_crf'])
     model = OccupancyNetwork(decoder, encoder,crf,device=device)
     return model
 

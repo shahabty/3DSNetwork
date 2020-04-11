@@ -3,8 +3,11 @@ import torch
 import torch.nn as nn
 
 
-def get_crf(dim_in,dim_out):
-    return CRFRNN(dim_in,dim_out)
+def get_crf(dim_in,dim_out,with_crf):
+    if with_crf:
+        return CRFRNN(dim_in,dim_out)
+    else:
+        return None
 
 class CRFRNN(nn.Module):
     def __init__(self,dim_in,dim_out):
@@ -19,5 +22,5 @@ class CRFRNN(nn.Module):
         self.crf = MeanFieldCRF(filter_size = 11,n_iter = 5,return_log_proba=False)
 
     def forward(self,logits,p):
-        f_out = self.crf_encoder(p.permute(0,2,1))
-        return self.crf(logits.unsqueeze(1),f_out).squeeze()
+        #f_out = self.crf_encoder(p.permute(0,2,1))
+        return self.crf(logits.unsqueeze(1),p.permute(0,2,1)).squeeze()

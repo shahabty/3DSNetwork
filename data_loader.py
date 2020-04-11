@@ -25,11 +25,12 @@ def get_dataset(mode, cfg, return_idx=False, return_category=False):
         'train': 'train',
         'val': 'val',
         'test': 'test',
+        'eval': 'eval',
     }
 
     split = splits[mode]
     
-    if split == 'test':
+    if split == 'eval':
         points_field = PointsField(cfg['data']['points_iou_file'],unpackbits=cfg['data']['points_unpackbits'],)
         pointcloud_field = PointCloudField(cfg['data']['pointcloud_chamfer_file'])
         fields = {'points_iou': points_field,'pointcloud_chamfer': pointcloud_field,'idx': IndexField(),}
@@ -71,6 +72,7 @@ class Shapes3dDataset(data.Dataset):
             no_except (bool): no exception
             transform (callable): transformation applied to data points
         '''
+        split = 'test' if split == 'eval' else split
         # Attributes
         self.dataset_folder = dataset_folder
         self.fields = fields

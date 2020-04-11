@@ -80,7 +80,7 @@ class MeshEvaluator(object):
         '''
         # Return maximum losses if pointcloud is empty
         if pointcloud.shape[0] == 0:
-            logger.warn('Empty pointcloud / mesh detected!')
+            print('Empty pointcloud / mesh detected!')
             out_dict = EMPTY_PCL_DICT.copy()
             if normals is not None and normals_tgt is not None:
                 out_dict.update(EMPTY_PCL_DICT_NORMALS)
