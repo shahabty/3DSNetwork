@@ -15,7 +15,7 @@ import pandas as pd
 
 
 cfg = {
-'mode':'train',
+'mode':'eval',
 'with_crf':True,
 'data':{'dataset': 'Shapes3D',
   'path': '/media/shahab/D2/CV-project/3DSNetwork/data/ShapeNet/',
@@ -47,8 +47,8 @@ cfg = {
 'model':{'c_dim': 256,'z_dim': 0},
 'train':{'batch_size': 64,'epochs':20,'pretrained':'onet_img2mesh_3-f786b04a.pt'},
 'val':{'batch_size':10},
-'test':{'pretrained':'model_crf_best_2.pt','vis_n_outputs': 30},
-'out': {'out_dir':'out','checkpoint_dir':'pretrained','save_freq':5}
+'test':{'pretrained':'model_crf_points_best.pt','vis_n_outputs': 30},
+'out': {'out_dir':'out_crf_points','checkpoint_dir':'pretrained','save_freq':5}
 }
 
 if cfg['mode'] == 'train':
@@ -58,7 +58,7 @@ def main(cfg):
 
     if cfg['mode'] == 'train':
         train_dataset = get_dataset(mode = cfg['mode'],cfg = cfg)
-        val_dataset = get_dataset(mode = cfg['mode'],cfg = cfg)
+        val_dataset = get_dataset(mode = 'val',cfg = cfg)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg['train']['batch_size'], num_workers=8, shuffle=True, collate_fn=collate_remove_none,worker_init_fn=worker_init_fn)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=cfg['val']['batch_size'], num_workers=8, shuffle=False,collate_fn=collate_remove_none,worker_init_fn=worker_init_fn)
         model = get_network(cfg,device = 'cuda:0',dataset = train_dataset)      
@@ -84,9 +84,8 @@ def main(cfg):
 def train(train_loader,val_loader,model,optimizer,checkpoint,cfg):
     it = 0
     for epoch in range(cfg['train']['epochs']):
-        model.train()
         validation(val_loader,model,optimizer,checkpoint,cfg,it)
-        return 0
+        model.train()
         for batch in tqdm(train_loader):
             p = batch.get('points').to('cuda:0')
             occ = batch.get('points.occ').to('cuda:0')

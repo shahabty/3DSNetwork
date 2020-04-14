@@ -22,5 +22,9 @@ To test it, cfg['mode'] must be 'test'. Then:
 ```console
 username@PC:~$ python main.py.
 ```
+To evaluate the model, cfg['mode'] must be 'eval'. Then:
+```console
+username@PC:~$ python main.py.
+```
 
 The output files and logs will be saved in cfg['out']['out_dir'].
